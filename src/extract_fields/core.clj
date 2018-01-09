@@ -62,6 +62,14 @@
       parse-lines
       (partial add-labels treatment problem))))
 
+(defn pmap-process-file [treatment problem]
+  (let [generation (volatile! nil)]
+    (comp
+      (partial remove nil?)
+      (partial pmap (partial process-line generation))
+      parse-lines
+      (partial add-labels treatment problem))))
+
 ; Took 101,246 msecs to process 100 syllables runs with just add-delete-only
 ; This seems to get a lot of parallelization in ways I don't fully understand.
 (defn serial-process-files [output-file treatment problem log-file-names]
@@ -73,6 +81,14 @@
 (defn pmap-process-files [output-file treatment problem log-file-names]
   (sc/spit-csv output-file {:batch-size 100}
     (apply concat (pmap (process-file treatment problem) log-file-names))))
+
+; Took 85,105 msecs to process 100 syllables runs with just add-delete-only
+; 84% of the time for the "serial" version.
+; THIS ALSO ISN'T CORRECT. The volatile generation variable is interacting
+; badly with the multiple threads, because each file doesn't get their own.
+(defn many-pmap-process-files [output-file treatment problem log-file-names]
+  (sc/spit-csv output-file {:batch-size 100}
+    (apply concat (pmap (pmap-process-file treatment problem) log-file-names))))
 
 ; Took 93,153 msecs to process 100 syllables runs with just add-delete-only
 ; 92% of the time for the "serial" version.
@@ -112,4 +128,4 @@
   zero cases best, total error best) data and save it in
   a columnar file appropriate for loading into something like R."
   [output-file treatment problem & log-file-names]
-  (r-fold-process-files output-file treatment problem log-file-names))
+  (many-pmap-process-files output-file treatment problem log-file-names))
