@@ -62,6 +62,10 @@
       parse-lines
       (partial add-labels treatment problem))))
 
+(defn serial-process-files [output-file treatment problem log-file-names]
+  (sc/spit-csv output-file {:batch-size 100}
+    (mapcat (process-file treatment problem) log-file-names)))
+
 (defn -main
   "Extract various data from log files.
   The first argument is a the name of the desired output file,
@@ -73,6 +77,4 @@
   zero cases best, total error best) data and save it in
   a columnar file appropriate for loading into something like R."
   [output-file treatment problem & log-file-names]
-  (sc/spit-csv output-file {:batch-size 100}
-    (mapcat (process-file treatment problem) log-file-names)))
-
+  (serial-process-files output-file treatment problem log-file-names))
