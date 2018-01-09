@@ -62,9 +62,44 @@
       parse-lines
       (partial add-labels treatment problem))))
 
+; Took 101,246 msecs to process 100 syllables runs with just add-delete-only
+; This seems to get a lot of parallelization in ways I don't fully understand.
 (defn serial-process-files [output-file treatment problem log-file-names]
   (sc/spit-csv output-file {:batch-size 100}
     (mapcat (process-file treatment problem) log-file-names)))
+
+; Took 86,296 msecs to process 100 syllables runs with just add-delete-only
+; 85% of the time for the "serial" version.
+(defn pmap-process-files [output-file treatment problem log-file-names]
+  (sc/spit-csv output-file {:batch-size 100}
+    (apply concat (pmap (process-file treatment problem) log-file-names))))
+
+; Took 93,153 msecs to process 100 syllables runs with just add-delete-only
+; 92% of the time for the "serial" version.
+(defn r-mapcat-process-files [output-file treatment problem log-file-names]
+  (sc/spit-csv output-file {:batch-size 100}
+    (into [] (r/mapcat (process-file treatment problem) (vec log-file-names)))))
+
+; Took 110,769 msecs to process 100 syllables runs with just add-delete-only
+; 109% of the time for the "serial" version.
+(defn r-fold-map-process-files [output-file treatment problem log-file-names]
+  (sc/spit-csv output-file {:batch-size 100}
+    (into [] (r/fold 1 r/cat r/append! 
+    	     	     (r/map (process-file treatment problem) (vec log-file-names))))))
+
+; Took 82534 msecs to process 100 syllables runs with just add-delete-only
+; 83% of the time for the "serial" version.
+; Seems to have an odd "pulsing" behavior where there will be quite a few
+; cores active (4-10), and then it will drop back to 1, and then go back
+; up to several, and back down, etc.
+; A crap-load of work for a not terribly impressive improvement.
+(defn r-fold-process-files [output-file treatment problem log-file-names]
+  (sc/spit-csv output-file {:batch-size 100}
+    (apply concat (into [] (r/fold 1 r/cat
+    	     	     (r/monoid (fn [acc item]
+		     	         (r/append! acc ((process-file treatment problem) item)))
+		     	       (constantly []))
+    	     	     (vec log-file-names))))))
 
 (defn -main
   "Extract various data from log files.
@@ -77,4 +112,4 @@
   zero cases best, total error best) data and save it in
   a columnar file appropriate for loading into something like R."
   [output-file treatment problem & log-file-names]
-  (serial-process-files output-file treatment problem log-file-names))
+  (r-fold-process-files output-file treatment problem log-file-names))
