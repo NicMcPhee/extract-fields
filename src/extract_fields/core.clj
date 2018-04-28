@@ -119,9 +119,7 @@
 
 (def filenames 
   (for [i (range 100)] 
-    ; (str "/home/thelmuth/Results/decay-add-delete/add-delete-only/syllables/log" 
-    ; (str "/home/thelmuth/Results/parent-selection-v2/lexicase/syllables/log" 
-    (str "/home/thelmuth/Results/decay-add-delete/size-neutral-add-delete/syllables/log"
+    (str "/tmp/data_files/syllables/log"
      i ".txt")))
 
 (defn -main
