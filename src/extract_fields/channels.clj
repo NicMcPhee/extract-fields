@@ -54,34 +54,32 @@
 (defn file-label [filename]
   (fs/base-name filename true))
 
-(defn file->lines [treatment problem log-file]
+; (def *chan-size* 10)
+
+(defn file->entries [treatment problem file-channel-size log-file]
   (let [generation (volatile! nil)
-        lines (async/chan 100)]
+        entries (async/chan file-channel-size (comp (map process-line) (remove nil?)))]
     (async/go
-      (with-open [rdr (clojure.java.io/reader log-file)]
+      (with-open [rdr (new java.io.BufferedReader (new java.io.FileReader log-file))] ; (clojure.java.io/reader log-file)]
         (doseq [line (remove nil? (line-seq rdr))]
 	  (if-let [gen-match (re-find #"Processing generation:\s*(\d+)" line)]
     	    (vreset! generation (second gen-match))
-  	    (async/>! lines (label-line treatment problem (file-label log-file) @generation line))))
-	(async/close! lines)))
-    lines))
-
-(defn files->lines [treatment problem log-file-names]
-  (async/merge 
-    (map (partial file->lines treatment problem) log-file-names)
-    (* 100 (count log-file-names))))
-
-(def NUM-PIPES 20)
-
-(defn files->entries [treatment problem log-file-names]
-  (let [entries (async/chan 100)
-        lines (files->lines treatment problem log-file-names)]
-    (async/pipeline NUM-PIPES
-    		    entries 
-		    (comp (map process-line)
-			  (remove nil?))
-		    lines)
+  	    (async/>! entries (label-line treatment problem (file-label log-file) @generation line))))
+	(async/close! entries)))
     entries))
+
+;; (defn files->lines [treatment problem log-file-names]
+;;   (async/merge 
+;;     (map (partial file->lines treatment problem) log-file-names)
+;;     (* 100 (count log-file-names))))
+
+; (def NUM-PIPES 40)
+
+; (def *merged-chan-size* 1)
+
+(defn files->entries [treatment problem log-file-names merge-channel-size file-channel-size]
+  (let [entry-channels (map (partial file->entries treatment problem file-channel-size) log-file-names)]
+    (async/merge entry-channels merge-channel-size)))
 
 (def headers 
   (clojure.string/join "," 
@@ -99,6 +97,15 @@
 	    [treatment, problem, filename, generation, val-type, value]))
 	(.newLine writer)
 	(recur)))))
+
+(defn process-files
+  ([treatment problem output-file input-files]
+   (process-files treatment problem output-file input-files 1 1))
+  ([treatment problem output-file input-files merge-channel-size]
+   (process-files treatment problem output-file input-files merge-channel-size 1))
+  ([treatment problem output-file input-files merge-channel-size file-channel-size]
+  (let [entries (files->entries treatment problem input-files merge-channel-size file-channel-size)]
+    (write-entries output-file entries))))
 
 ; (defn channel-process-files [output-file treatment problem log-file-names]
 ;   (let [entries (files->entries treatment problem log-file-names)]
