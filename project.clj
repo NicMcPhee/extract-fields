@@ -8,6 +8,7 @@
   		 [me.raynes/fs "1.4.6"]
 		 [semantic-csv "0.2.1-alpha1"]
 		 [iota "1.1.3"]]
+  :jvm-opts ["-server" "-Dclojure.core.async.pool-size=40"]
   :main ^:skip-aot extract-fields.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})
