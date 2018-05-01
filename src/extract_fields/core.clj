@@ -119,7 +119,7 @@
 
 (def filenames 
   (for [i (range 100)] 
-    (str "/tmp/data_files/syllables/log"
+    (str "data_files/syllables/log"
      i ".txt")))
 
 (defn -main
